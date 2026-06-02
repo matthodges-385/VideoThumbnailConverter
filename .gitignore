@@ -1,0 +1,2 @@
+# Ignore compiled EXE (built locally from the .ps1)
+*.exe
