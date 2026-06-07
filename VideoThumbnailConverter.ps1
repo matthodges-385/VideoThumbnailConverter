@@ -257,7 +257,7 @@ $lblErrors    = New-CountLabel "Errors : 0"       300 405
 $lblErrors.ForeColor = [System.Drawing.Color]::Red
 
 $lblVersion = New-Object System.Windows.Forms.Label
-$lblVersion.Text      = "Version 1.2"
+$lblVersion.Text      = "Version 1.3"
 $lblVersion.Font      = New-Object System.Drawing.Font("Segoe UI", 8)
 $lblVersion.ForeColor = [System.Drawing.Color]::Gray
 $lblVersion.AutoSize  = $true
@@ -385,12 +385,22 @@ $btnStart.Add_Click({
     $errorLog  = [System.Collections.Generic.List[string]]::new()
     Update-Counters $total 0 $total 0
 
+    # Create log file in output folder
+    $logStamp   = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
+    $logFile    = Join-Path $outFolder "VidThumbConverter_$logStamp.log"
+    $logHeader  = "Video Thumbnail Converter v1.3 - Run started $((Get-Date).ToString('dd/MM/yyyy HH:mm:ss'))"
+    $logHeader += "`nSource: $($txtSource.Text)"
+    $logHeader += "`nOutput: $outFolder"
+    $logHeader += "`nTotal files: $total`n" + ("-" * 60)
+    Add-Content -Path $logFile -Value $logHeader
+
     $filesToProcess = $script:sourceFiles.ToArray()
     $i = 0
 
     foreach ($file in $filesToProcess) {
         if ($script:cancelFlag) {
             $txtProgressInfo.Text = "Stopped by user."
+            Add-Content -Path $logFile -Value "`nRun stopped by user at file $i of $total."
             break
         }
 
@@ -404,13 +414,22 @@ $btnStart.Add_Click({
 
         if ($ok) {
             $processed++
+            Add-Content -Path $logFile -Value "[ OK ]  $name"
         } else {
             $errors++
-            $errorLog.Add("$name -- $($errMsg.Value)")
+            $errorLog.Add("$name`n        $($errMsg.Value)")
+            Add-Content -Path $logFile -Value "[FAIL]  $name`n        Reason: $($errMsg.Value)"
         }
         Update-Counters $total $processed ($total - $processed - $errors) $errors
         [System.Windows.Forms.Application]::DoEvents()
     }
+
+    # Write summary to log
+    $logFooter  = "`n" + ("-" * 60)
+    $logFooter += "`nRun finished $((Get-Date).ToString('dd/MM/yyyy HH:mm:ss'))"
+    $logFooter += "`nProcessed OK : $processed"
+    $logFooter += "`nFailed       : $errors"
+    Add-Content -Path $logFile -Value $logFooter
 
     $script:isProcessing     = $false
     $btnStart.Enabled        = $true
@@ -418,12 +437,12 @@ $btnStart.Add_Click({
     $btnBrowseOutput.Enabled = $true
 
     if (-not $script:cancelFlag) {
-        $txtProgressInfo.Text = "Done! Processed: $processed  Errors: $errors"
+        $txtProgressInfo.Text = "Done! Processed: $processed  Errors: $errors  (log saved to output folder)"
     }
 
     # Show error detail if any failures occurred
     if ($errorLog.Count -gt 0) {
-        $logMsg = "The following files could not be processed:`n`n" + ($errorLog -join "`n`n")
+        $logMsg = "The following files could not be processed:`n`n" + ($errorLog -join "`n`n") + "`n`nFull details saved to:`n$logFile"
         [System.Windows.Forms.MessageBox]::Show(
             $logMsg,
             "Errors ($($errorLog.Count) file(s))",
