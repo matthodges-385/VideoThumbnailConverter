@@ -499,14 +499,21 @@ $btnStart.Add_Click({
                     $ts       = (Get-Date).ToString('HH:mm:ss')
                     $elapsed  = [Math]::Round(((Get-Date) - $job.StartTime).TotalSeconds, 1)
                     foreach ($r in $results) {
-                        $name = [System.IO.Path]::GetFileName($r.File)
+                        $name     = [System.IO.Path]::GetFileName($r.File)
+                        $fileItem = Get-Item $r.File -ErrorAction SilentlyContinue
+                        $sizeStr  = if ($fileItem) {
+                            $b = $fileItem.Length
+                            if     ($b -ge 1GB) { "{0:N1} GB" -f ($b / 1GB) }
+                            elseif ($b -ge 1MB) { "{0:N1} MB" -f ($b / 1MB) }
+                            else                { "{0:N0} KB" -f ($b / 1KB) }
+                        } else { "?" }
                         if ($r.Success) {
                             $script:processed++
-                            Add-Content -Path $script:logFile -Value "[ OK ]  $ts  (${elapsed}s)  $name"
+                            Add-Content -Path $script:logFile -Value "[ OK ]  $ts  (${elapsed}s)  $sizeStr  $name"
                         } else {
                             $script:errors++
                             $script:errorLog.Add("$name`n        $($r.Error)")
-                            Add-Content -Path $script:logFile -Value "[FAIL]  $ts  (${elapsed}s)  $name`n        Reason: $($r.Error)"
+                            Add-Content -Path $script:logFile -Value "[FAIL]  $ts  (${elapsed}s)  $sizeStr  $name`n        Reason: $($r.Error)"
                         }
                     }
                 } catch {
