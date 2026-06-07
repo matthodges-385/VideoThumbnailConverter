@@ -512,8 +512,9 @@ $btnStart.Add_Click({
                             Add-Content -Path $script:logFile -Value "[ OK ]  $ts  (${elapsed}s)  $sizeStr  $name"
                         } else {
                             $script:errors++
-                            $script:errorLog.Add("$name`n        $($r.Error)")
-                            Add-Content -Path $script:logFile -Value "[FAIL]  $ts  (${elapsed}s)  $sizeStr  $name`n        Reason: $($r.Error)"
+                            $errMsg = ($r.Error -replace '[\r\n]+', ' ').Trim()
+                            Add-Content -Path $script:logFile -Value "[FAIL]  $ts  (${elapsed}s)  $sizeStr  $name`n        Reason: $errMsg"
+                            try { $script:errorLog.Add("$name`n        $errMsg") } catch {}
                         }
                     }
                 } catch {
@@ -521,7 +522,8 @@ $btnStart.Add_Click({
                     $ts      = (Get-Date).ToString('HH:mm:ss')
                     $elapsed = [Math]::Round(((Get-Date) - $job.StartTime).TotalSeconds, 1)
                     $name    = [System.IO.Path]::GetFileName($job.File)
-                    Add-Content -Path $script:logFile -Value "[FAIL]  $ts  (${elapsed}s)  $name`n        Reason: $($_.Exception.Message)"
+                    $errMsg  = ($_.Exception.Message -replace '[\r\n]+', ' ').Trim()
+                    Add-Content -Path $script:logFile -Value "[FAIL]  $ts  (${elapsed}s)  $name`n        Reason: $errMsg"
                 }
                 $job.PS.Dispose()
                 $toRemove.Add($job)
