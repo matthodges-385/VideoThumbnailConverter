@@ -497,7 +497,7 @@ $btnStart.Add_Click({
                 try {
                     $results  = $job.PS.EndInvoke($job.Handle)
                     $ts       = (Get-Date).ToString('HH:mm:ss')
-                    $elapsed  = [Math]::Round(((Get-Date) - $job.StartTime).TotalSeconds, 1)
+                    $elapsed  = [Math]::Round([System.DateTime]::Now.Subtract($job.StartTime).TotalSeconds, 1)
                     foreach ($r in $results) {
                         $name     = [System.IO.Path]::GetFileName($r.File)
                         $fileItem = Get-Item $r.File -ErrorAction SilentlyContinue
