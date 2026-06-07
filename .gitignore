@@ -1,2 +1,5 @@
-# Ignore compiled EXE (built locally from the .ps1)
+# Compiled EXE
 *.exe
+
+# Run logs
+*.log
