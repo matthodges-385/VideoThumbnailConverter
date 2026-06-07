@@ -470,7 +470,7 @@ $btnStart.Add_Click({
         [void]$ps.AddParameter('ffprobePath',      $script:ffprobe)
         [void]$ps.AddParameter('atomicParsleyPath',$script:atomicParsley)
         $handle = $ps.BeginInvoke()
-        $script:pendingJobs.Add(@{ PS = $ps; Handle = $handle; File = $file })
+        $script:pendingJobs.Add(@{ PS = $ps; Handle = $handle; File = $file; StartTime = (Get-Date) })
     }
 
     Update-Counters $script:totalFiles 0 $script:totalFiles 0
@@ -495,22 +495,26 @@ $btnStart.Add_Click({
         foreach ($job in $script:pendingJobs) {
             if ($job.Handle.IsCompleted) {
                 try {
-                    $results = $job.PS.EndInvoke($job.Handle)
+                    $results  = $job.PS.EndInvoke($job.Handle)
+                    $ts       = (Get-Date).ToString('HH:mm:ss')
+                    $elapsed  = [Math]::Round(((Get-Date) - $job.StartTime).TotalSeconds, 1)
                     foreach ($r in $results) {
                         $name = [System.IO.Path]::GetFileName($r.File)
                         if ($r.Success) {
                             $script:processed++
-                            Add-Content -Path $script:logFile -Value "[ OK ]  $name"
+                            Add-Content -Path $script:logFile -Value "[ OK ]  $ts  (${elapsed}s)  $name"
                         } else {
                             $script:errors++
                             $script:errorLog.Add("$name`n        $($r.Error)")
-                            Add-Content -Path $script:logFile -Value "[FAIL]  $name`n        Reason: $($r.Error)"
+                            Add-Content -Path $script:logFile -Value "[FAIL]  $ts  (${elapsed}s)  $name`n        Reason: $($r.Error)"
                         }
                     }
                 } catch {
                     $script:errors++
-                    $name = [System.IO.Path]::GetFileName($job.File)
-                    Add-Content -Path $script:logFile -Value "[FAIL]  $name`n        Reason: $($_.Exception.Message)"
+                    $ts      = (Get-Date).ToString('HH:mm:ss')
+                    $elapsed = [Math]::Round(((Get-Date) - $job.StartTime).TotalSeconds, 1)
+                    $name    = [System.IO.Path]::GetFileName($job.File)
+                    Add-Content -Path $script:logFile -Value "[FAIL]  $ts  (${elapsed}s)  $name`n        Reason: $($_.Exception.Message)"
                 }
                 $job.PS.Dispose()
                 $toRemove.Add($job)
