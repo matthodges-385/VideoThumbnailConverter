@@ -56,32 +56,40 @@ function Set-VideoThumbnail ([string]$inputFile, [string]$outputFolder, [ref]$er
     $ext      = [System.IO.Path]::GetExtension($inputFile).ToLower()
     $baseName = [System.IO.Path]::GetFileName($inputFile)
     $outFile  = Join-Path $outputFolder $baseName
-    $tmpThumb = [System.IO.Path]::GetTempFileName() + ".jpg"
-    $tmpVideo = [System.IO.Path]::ChangeExtension([System.IO.Path]::GetTempFileName(), $ext)
+    $tmpDir   = [System.IO.Path]::GetTempPath()
+    $tmpBase  = [System.IO.Path]::GetRandomFileName()
+    $tmpThumb = Join-Path $tmpDir ($tmpBase + ".jpg")
+    $tmpVideo = Join-Path $tmpDir ($tmpBase + $ext)
 
     try {
         $duration = Get-VideoDuration $inputFile
         $seekSec  = if ($duration -gt 0) { [Math]::Min(35, $duration * 0.5) } else { 35 }
         $seekStr  = [TimeSpan]::FromSeconds($seekSec).ToString("hh\:mm\:ss")
 
-        # Extract frame
-        & $script:ffmpeg -y -ss $seekStr -i $inputFile -frames:v 1 -q:v 2 $tmpThumb 2>$null
+        # Extract frame — capture stderr so we can report failures
+        $frameErr = & $script:ffmpeg -y -ss $seekStr -i $inputFile -frames:v 1 -q:v 2 $tmpThumb 2>&1
         if (-not (Test-Path $tmpThumb) -or (Get-Item $tmpThumb).Length -eq 0) {
-            $errorMsg.Value = "Frame extraction failed"
+            $detail = ($frameErr | Where-Object { $_ -match 'Error|Invalid|No such' } | Select-Object -Last 2) -join ' '
+            $errorMsg.Value = "Frame extraction failed. $detail".Trim()
             return $false
         }
 
-        # Embed thumbnail
+        # Embed thumbnail — safer stream map: first video + all audio + cover art
+        # Using mjpeg (JPEG) instead of PNG for better MP4 compatibility
+        $embedErr = $null
         if ($ext -eq '.mkv') {
-            & $script:ffmpeg -y -i $inputFile -attach $tmpThumb `
-                -metadata:s:t mimetype=image/jpeg -c copy $tmpVideo 2>$null
+            $embedErr = & $script:ffmpeg -y -i $inputFile -attach $tmpThumb `
+                -metadata:s:t mimetype=image/jpeg -c copy $tmpVideo 2>&1
         } else {
-            & $script:ffmpeg -y -i $inputFile -i $tmpThumb `
-                -map 0 -map 1 -c copy -c:v:1 png -disposition:v:1 attached_pic $tmpVideo 2>$null
+            $embedErr = & $script:ffmpeg -y -i $inputFile -i $tmpThumb `
+                -map 0:v:0 -map 0:a? -map 0:s? -map 1:v `
+                -c copy -c:v:1 mjpeg -disposition:v:1 attached_pic `
+                $tmpVideo 2>&1
         }
 
         if (-not (Test-Path $tmpVideo) -or (Get-Item $tmpVideo).Length -eq 0) {
-            $errorMsg.Value = "Thumbnail embed failed"
+            $detail = ($embedErr | Where-Object { $_ -match 'Error|Invalid|No such|muxer' } | Select-Object -Last 2) -join ' '
+            $errorMsg.Value = "Thumbnail embed failed. $detail".Trim()
             return $false
         }
 
@@ -249,7 +257,7 @@ $lblErrors    = New-CountLabel "Errors : 0"       300 405
 $lblErrors.ForeColor = [System.Drawing.Color]::Red
 
 $lblVersion = New-Object System.Windows.Forms.Label
-$lblVersion.Text      = "Version 1.1"
+$lblVersion.Text      = "Version 1.2"
 $lblVersion.Font      = New-Object System.Drawing.Font("Segoe UI", 8)
 $lblVersion.ForeColor = [System.Drawing.Color]::Gray
 $lblVersion.AutoSize  = $true
@@ -374,9 +382,11 @@ $btnStart.Add_Click({
     $total     = $script:sourceFiles.Count
     $processed = 0
     $errors    = 0
+    $errorLog  = [System.Collections.Generic.List[string]]::new()
     Update-Counters $total 0 $total 0
 
     $filesToProcess = $script:sourceFiles.ToArray()
+    $i = 0
 
     foreach ($file in $filesToProcess) {
         if ($script:cancelFlag) {
@@ -384,13 +394,20 @@ $btnStart.Add_Click({
             break
         }
 
-        $txtProgressInfo.Text = [System.IO.Path]::GetFileName($file)
+        $i++
+        $name = [System.IO.Path]::GetFileName($file)
+        $txtProgressInfo.Text = "[$i of $total] $name"
         [System.Windows.Forms.Application]::DoEvents()
 
         $errMsg = [ref]""
         $ok = Set-VideoThumbnail -inputFile $file -outputFolder $outFolder -errorMsg $errMsg
 
-        if ($ok) { $processed++ } else { $errors++ }
+        if ($ok) {
+            $processed++
+        } else {
+            $errors++
+            $errorLog.Add("$name -- $($errMsg.Value)")
+        }
         Update-Counters $total $processed ($total - $processed - $errors) $errors
         [System.Windows.Forms.Application]::DoEvents()
     }
@@ -402,6 +419,17 @@ $btnStart.Add_Click({
 
     if (-not $script:cancelFlag) {
         $txtProgressInfo.Text = "Done! Processed: $processed  Errors: $errors"
+    }
+
+    # Show error detail if any failures occurred
+    if ($errorLog.Count -gt 0) {
+        $logMsg = "The following files could not be processed:`n`n" + ($errorLog -join "`n`n")
+        [System.Windows.Forms.MessageBox]::Show(
+            $logMsg,
+            "Errors ($($errorLog.Count) file(s))",
+            [System.Windows.Forms.MessageBoxButtons]::OK,
+            [System.Windows.Forms.MessageBoxIcon]::Warning
+        ) | Out-Null
     }
 })
 #endregion
