@@ -274,7 +274,7 @@ $lblErrors    = New-CountLabel "Errors : 0"       300 405
 $lblErrors.ForeColor = [System.Drawing.Color]::Red
 
 $lblVersion = New-Object System.Windows.Forms.Label
-$lblVersion.Text      = "Version 1.4"
+$lblVersion.Text      = "Version 1.5"
 $lblVersion.Font      = New-Object System.Drawing.Font("Segoe UI", 8)
 $lblVersion.ForeColor = [System.Drawing.Color]::Gray
 $lblVersion.AutoSize  = $true
@@ -428,12 +428,15 @@ $btnStart.Add_Click({
     $script:pool = [RunspaceFactory]::CreateRunspacePool(1, 2)
     $script:pool.Open()
 
+    # Convert scriptblock to string so it serialises cleanly into each runspace
+    $processStr = $script:processBlock.ToString()
+
     # Submit all jobs
     $script:pendingJobs = [System.Collections.Generic.List[hashtable]]::new()
     foreach ($file in $script:sourceFiles.ToArray()) {
         $ps = [PowerShell]::Create()
         $ps.RunspacePool = $script:pool
-        [void]$ps.AddScript($script:processBlock)
+        [void]$ps.AddScript($processStr)
         [void]$ps.AddParameter('inputFile',        $file)
         [void]$ps.AddParameter('outputFolder',     $outFolder)
         [void]$ps.AddParameter('ffmpegPath',       $script:ffmpeg)
@@ -487,11 +490,12 @@ $btnStart.Add_Click({
         }
         foreach ($j in $toRemove) { [void]$script:pendingJobs.Remove($j) }
 
-        # Update UI
-        $done   = $script:processed + $script:errors
-        $active = $script:pendingJobs.Count
-        if ($active -gt 0) {
-            $txtProgressInfo.Text = "$active file(s) processing | $done of $($script:totalFiles) done"
+        # Update UI — count only jobs actively running (not queued)
+        $done    = $script:processed + $script:errors
+        $running = ($script:pendingJobs | Where-Object { $_.PS.InvocationStateInfo.State -eq 'Running' }).Count
+        $queued  = $script:pendingJobs.Count - $running
+        if ($script:pendingJobs.Count -gt 0) {
+            $txtProgressInfo.Text = "$running running, $queued queued | $done of $($script:totalFiles) done"
         }
         Update-Counters $script:totalFiles $script:processed ($script:totalFiles - $done) $script:errors
 
