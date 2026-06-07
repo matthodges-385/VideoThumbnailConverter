@@ -124,6 +124,23 @@ function Get-VideoFiles ([string]$path) {
         return @($path)
     }
 }
+
+function Invoke-LogMaintenance ([string]$logPath) {
+    # Single rolling log — archive when file entry count hits 100
+    if (-not (Test-Path $logPath)) { return }
+
+    $lines       = Get-Content $logPath -ErrorAction SilentlyContinue
+    $entryCount  = ($lines | Where-Object { $_ -match '^\[ OK \]|^\[FAIL\]' }).Count
+
+    if ($entryCount -ge 100) {
+        $stamp       = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
+        $archiveName = "VidThumbConverter_archive_$stamp.log"
+        $archivePath = Join-Path (Split-Path $logPath) $archiveName
+        Copy-Item $logPath $archivePath -Force
+        # Reset main log with a note pointing to the archive
+        Set-Content $logPath "# Log archived on $((Get-Date).ToString('dd/MM/yyyy HH:mm:ss')) — previous entries saved to: $archiveName`n"
+    }
+}
 #endregion
 
 #region Build UI
@@ -274,7 +291,7 @@ $lblErrors    = New-CountLabel "Errors : 0"       300 405
 $lblErrors.ForeColor = [System.Drawing.Color]::Red
 
 $lblVersion = New-Object System.Windows.Forms.Label
-$lblVersion.Text      = "Version 1.5"
+$lblVersion.Text      = "Version 1.6"
 $lblVersion.Font      = New-Object System.Drawing.Font("Segoe UI", 8)
 $lblVersion.ForeColor = [System.Drawing.Color]::Gray
 $lblVersion.AutoSize  = $true
@@ -413,10 +430,10 @@ $btnStart.Add_Click({
     $script:errorLog  = [System.Collections.Generic.List[string]]::new()
     $script:totalFiles = $script:sourceFiles.Count
 
-    # Create log file
-    $logStamp       = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
-    $script:logFile = Join-Path $PSScriptRoot "VidThumbConverter_$logStamp.log"
-    $logHeader      = "Video Thumbnail Converter v1.4 - Run started $((Get-Date).ToString('dd/MM/yyyy HH:mm:ss'))"
+    # Rolling log — archive if over 100 entries, then append to single file
+    $script:logFile = Join-Path $PSScriptRoot "VidThumbConverter.log"
+    Invoke-LogMaintenance $script:logFile
+    $logHeader      = "Video Thumbnail Converter v1.6 - Run started $((Get-Date).ToString('dd/MM/yyyy HH:mm:ss'))"
     $logHeader     += "`nSource : $($txtSource.Text)"
     $logHeader     += "`nOutput : $outFolder"
     $logHeader     += "`nMode   : $(if ($script:atomicParsley) { 'Fast (AtomicParsley + FFmpeg)' } else { 'Standard (FFmpeg)' })"
