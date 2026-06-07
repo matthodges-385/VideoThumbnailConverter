@@ -385,9 +385,9 @@ $btnStart.Add_Click({
     $errorLog  = [System.Collections.Generic.List[string]]::new()
     Update-Counters $total 0 $total 0
 
-    # Create log file in output folder
+    # Create log file in script folder
     $logStamp   = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
-    $logFile    = Join-Path $outFolder "VidThumbConverter_$logStamp.log"
+    $logFile    = Join-Path $PSScriptRoot "VidThumbConverter_$logStamp.log"
     $logHeader  = "Video Thumbnail Converter v1.3 - Run started $((Get-Date).ToString('dd/MM/yyyy HH:mm:ss'))"
     $logHeader += "`nSource: $($txtSource.Text)"
     $logHeader += "`nOutput: $outFolder"
