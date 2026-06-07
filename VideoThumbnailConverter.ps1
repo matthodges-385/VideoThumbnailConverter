@@ -30,6 +30,7 @@ $script:sourceFiles  = [System.Collections.Generic.List[string]]::new()
 $script:cancelFlag   = $false
 $script:isProcessing = $false
 $script:pendingJobs  = $null
+$script:fileQueue    = $null
 $script:pollTimer    = $null
 $script:pool         = $null
 $script:logFile      = ""
@@ -37,6 +38,8 @@ $script:totalFiles   = 0
 $script:processed    = 0
 $script:errors       = 0
 $script:errorLog     = $null
+$script:outFolder    = ""
+$script:processStr   = ""
 #endregion
 
 #region Processing script block (runs in background runspaces)
@@ -446,16 +449,23 @@ $btnStart.Add_Click({
     $script:pool.Open()
 
     # Convert scriptblock to string so it serialises cleanly into each runspace
-    $processStr = $script:processBlock.ToString()
+    $script:processStr = $script:processBlock.ToString()
+    $script:outFolder  = $outFolder
 
-    # Submit all jobs
+    # Build file queue — we submit jobs 2 at a time so queued count is accurate
+    $script:fileQueue   = [System.Collections.Generic.Queue[string]]::new()
+    foreach ($file in $script:sourceFiles.ToArray()) { $script:fileQueue.Enqueue($file) }
     $script:pendingJobs = [System.Collections.Generic.List[hashtable]]::new()
-    foreach ($file in $script:sourceFiles.ToArray()) {
-        $ps = [PowerShell]::Create()
+
+    # Seed the first 2 jobs
+    $maxConcurrent = 2
+    for ($i = 0; $i -lt $maxConcurrent -and $script:fileQueue.Count -gt 0; $i++) {
+        $file = $script:fileQueue.Dequeue()
+        $ps   = [PowerShell]::Create()
         $ps.RunspacePool = $script:pool
-        [void]$ps.AddScript($processStr)
+        [void]$ps.AddScript($script:processStr)
         [void]$ps.AddParameter('inputFile',        $file)
-        [void]$ps.AddParameter('outputFolder',     $outFolder)
+        [void]$ps.AddParameter('outputFolder',     $script:outFolder)
         [void]$ps.AddParameter('ffmpegPath',       $script:ffmpeg)
         [void]$ps.AddParameter('ffprobePath',      $script:ffprobe)
         [void]$ps.AddParameter('atomicParsleyPath',$script:atomicParsley)
@@ -472,6 +482,7 @@ $btnStart.Add_Click({
 
         # Handle stop request
         if ($script:cancelFlag) {
+            $script:fileQueue.Clear()
             foreach ($job in $script:pendingJobs) {
                 try { $job.PS.Stop() } catch {}
                 $job.PS.Dispose()
@@ -507,17 +518,32 @@ $btnStart.Add_Click({
         }
         foreach ($j in $toRemove) { [void]$script:pendingJobs.Remove($j) }
 
-        # Update UI — count only jobs actively running (not queued)
+        # Feed next jobs from queue to fill free slots
+        while ($script:pendingJobs.Count -lt 2 -and $script:fileQueue.Count -gt 0 -and -not $script:cancelFlag) {
+            $file = $script:fileQueue.Dequeue()
+            $ps   = [PowerShell]::Create()
+            $ps.RunspacePool = $script:pool
+            [void]$ps.AddScript($script:processStr)
+            [void]$ps.AddParameter('inputFile',        $file)
+            [void]$ps.AddParameter('outputFolder',     $script:outFolder)
+            [void]$ps.AddParameter('ffmpegPath',       $script:ffmpeg)
+            [void]$ps.AddParameter('ffprobePath',      $script:ffprobe)
+            [void]$ps.AddParameter('atomicParsleyPath',$script:atomicParsley)
+            $handle = $ps.BeginInvoke()
+            $script:pendingJobs.Add(@{ PS = $ps; Handle = $handle; File = $file })
+        }
+
+        # Update UI
         $done    = $script:processed + $script:errors
-        $running = ($script:pendingJobs | Where-Object { $_.PS.InvocationStateInfo.State -eq 'Running' }).Count
-        $queued  = $script:pendingJobs.Count - $running
-        if ($script:pendingJobs.Count -gt 0) {
+        $running = $script:pendingJobs.Count
+        $queued  = $script:fileQueue.Count
+        if ($running -gt 0 -or $queued -gt 0) {
             $txtProgressInfo.Text = "$running running, $queued queued | $done of $($script:totalFiles) done"
         }
         Update-Counters $script:totalFiles $script:processed ($script:totalFiles - $done) $script:errors
 
         # All done?
-        if ($script:pendingJobs.Count -eq 0) {
+        if ($script:pendingJobs.Count -eq 0 -and $script:fileQueue.Count -eq 0) {
             $script:pollTimer.Stop()
             $script:pool.Close()
             $script:pool.Dispose()
