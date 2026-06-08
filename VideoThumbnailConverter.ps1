@@ -435,7 +435,7 @@ $btnStart.Add_Click({
     # Rolling log — archive if over 100 entries, then append to single file
     $script:logFile = Join-Path $PSScriptRoot "VidThumbConverter.log"
     Invoke-LogMaintenance $script:logFile
-    $logHeader      = "`nVideo Thumbnail Converter v1.8 - Run started $((Get-Date).ToString('dd/MM/yyyy HH:mm:ss'))"
+    $logHeader      = "`n" + ("+=" * 30) + "`nVideo Thumbnail Converter v1.8 - Run started $((Get-Date).ToString('dd/MM/yyyy HH:mm:ss'))"
     $logHeader     += "`nSource : $($txtSource.Text)"
     $logHeader     += "`nOutput : $outFolder"
     $logHeader     += "`nMode   : $(if ($script:atomicParsley) { 'Fast (AtomicParsley + FFmpeg)' } else { 'Standard (FFmpeg)' })"
