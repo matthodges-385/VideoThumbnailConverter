@@ -520,7 +520,7 @@ $btnStart.Add_Click({
                 } catch {
                     $script:errors++
                     $ts      = (Get-Date).ToString('HH:mm:ss')
-                    $elapsed = [Math]::Round(((Get-Date) - $job.StartTime).TotalSeconds, 1)
+                    $elapsed  = [Math]::Round([System.DateTime]::Now.Subtract($job.StartTime).TotalSeconds, 1)
                     $name    = [System.IO.Path]::GetFileName($job.File)
                     $errMsg  = ($_.Exception.Message -replace '[\r\n]+', ' ').Trim()
                     Add-Content -Path $script:logFile -Value "[FAIL]  $ts  (${elapsed}s)  $name`n        Reason: $errMsg"
