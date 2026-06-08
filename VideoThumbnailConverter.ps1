@@ -470,7 +470,7 @@ $btnStart.Add_Click({
         [void]$ps.AddParameter('ffprobePath',      $script:ffprobe)
         [void]$ps.AddParameter('atomicParsleyPath',$script:atomicParsley)
         $handle = $ps.BeginInvoke()
-        $script:pendingJobs.Add(@{ PS = $ps; Handle = $handle; File = $file; StartTime = (Get-Date) })
+        $script:pendingJobs.Add(@{ PS = $ps; Handle = $handle; File = $file; StartTime = [System.DateTime]::Now.Ticks })
     }
 
     Update-Counters $script:totalFiles 0 $script:totalFiles 0
@@ -497,7 +497,7 @@ $btnStart.Add_Click({
                 try {
                     $results  = $job.PS.EndInvoke($job.Handle)
                     $ts       = (Get-Date).ToString('HH:mm:ss')
-                    $elapsed  = if ($job.StartTime) { [Math]::Round(([System.DateTime]::Now.Ticks - $job.StartTime.Ticks) / 10000000.0, 1) } else { 0 }
+                    $elapsed  = if ($job.StartTime) { [Math]::Round(([System.DateTime]::Now.Ticks - [long]$job.StartTime) / 10000000.0, 1) } else { 0 }
                     foreach ($r in $results) {
                         $name     = [System.IO.Path]::GetFileName($r.File)
                         $fileItem = Get-Item $r.File -ErrorAction SilentlyContinue
@@ -520,7 +520,7 @@ $btnStart.Add_Click({
                 } catch {
                     $script:errors++
                     $ts      = (Get-Date).ToString('HH:mm:ss')
-                    $elapsed  = if ($job.StartTime) { [Math]::Round(([System.DateTime]::Now.Ticks - $job.StartTime.Ticks) / 10000000.0, 1) } else { 0 }
+                    $elapsed  = if ($job.StartTime) { [Math]::Round(([System.DateTime]::Now.Ticks - [long]$job.StartTime) / 10000000.0, 1) } else { 0 }
                     $name    = [System.IO.Path]::GetFileName($job.File)
                     $errMsg  = ($_.Exception.Message -replace '[\r\n]+', ' ').Trim()
                     Add-Content -Path $script:logFile -Value "[FAIL]  $ts  (${elapsed}s)  $name`n        Reason: $errMsg"
@@ -543,7 +543,7 @@ $btnStart.Add_Click({
             [void]$ps.AddParameter('ffprobePath',      $script:ffprobe)
             [void]$ps.AddParameter('atomicParsleyPath',$script:atomicParsley)
             $handle = $ps.BeginInvoke()
-            $script:pendingJobs.Add(@{ PS = $ps; Handle = $handle; File = $file })
+            $script:pendingJobs.Add(@{ PS = $ps; Handle = $handle; File = $file; StartTime = [System.DateTime]::Now.Ticks })
         }
 
         # Update UI
