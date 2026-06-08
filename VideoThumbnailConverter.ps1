@@ -294,7 +294,7 @@ $lblErrors    = New-CountLabel "Errors : 0"       300 405
 $lblErrors.ForeColor = [System.Drawing.Color]::Red
 
 $lblVersion = New-Object System.Windows.Forms.Label
-$lblVersion.Text      = "Version 1.7"
+$lblVersion.Text      = "Version 1.8"
 $lblVersion.Font      = New-Object System.Drawing.Font("Segoe UI", 8)
 $lblVersion.ForeColor = [System.Drawing.Color]::Gray
 $lblVersion.AutoSize  = $true
@@ -436,7 +436,7 @@ $btnStart.Add_Click({
     # Rolling log — archive if over 100 entries, then append to single file
     $script:logFile = Join-Path $PSScriptRoot "VidThumbConverter.log"
     Invoke-LogMaintenance $script:logFile
-    $logHeader      = "Video Thumbnail Converter v1.7 - Run started $((Get-Date).ToString('dd/MM/yyyy HH:mm:ss'))"
+    $logHeader      = "Video Thumbnail Converter v1.8 - Run started $((Get-Date).ToString('dd/MM/yyyy HH:mm:ss'))"
     $logHeader     += "`nSource : $($txtSource.Text)"
     $logHeader     += "`nOutput : $outFolder"
     $logHeader     += "`nMode   : $(if ($script:atomicParsley) { 'Fast (AtomicParsley + FFmpeg)' } else { 'Standard (FFmpeg)' })"
