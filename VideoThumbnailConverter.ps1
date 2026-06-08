@@ -129,19 +129,18 @@ function Get-VideoFiles ([string]$path) {
 }
 
 function Invoke-LogMaintenance ([string]$logPath) {
-    # Single rolling log — archive when file entry count hits 100
+    # Single rolling log — archive to one permanent archive file when entry count hits 100
     if (-not (Test-Path $logPath)) { return }
 
     $lines       = Get-Content $logPath -ErrorAction SilentlyContinue
     $entryCount  = ($lines | Where-Object { $_ -match '^\[ OK \]|^\[FAIL\]' }).Count
 
     if ($entryCount -ge 100) {
-        $stamp       = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
-        $archiveName = "VidThumbConverter_archive_$stamp.log"
-        $archivePath = Join-Path (Split-Path $logPath) $archiveName
-        Copy-Item $logPath $archivePath -Force
-        # Reset main log with a note pointing to the archive
-        Set-Content $logPath "# Log archived on $((Get-Date).ToString('dd/MM/yyyy HH:mm:ss')) — previous entries saved to: $archiveName`n"
+        $archivePath = Join-Path (Split-Path $logPath) "VidThumbConverter_archive.log"
+        # Append current log contents to the single archive file
+        Add-Content -Path $archivePath -Value (Get-Content $logPath -Raw)
+        # Reset main log
+        Set-Content $logPath "# Log archived on $((Get-Date).ToString('dd/MM/yyyy HH:mm:ss')) - entries appended to VidThumbConverter_archive.log`n"
     }
 }
 #endregion
@@ -436,7 +435,7 @@ $btnStart.Add_Click({
     # Rolling log — archive if over 100 entries, then append to single file
     $script:logFile = Join-Path $PSScriptRoot "VidThumbConverter.log"
     Invoke-LogMaintenance $script:logFile
-    $logHeader      = "Video Thumbnail Converter v1.8 - Run started $((Get-Date).ToString('dd/MM/yyyy HH:mm:ss'))"
+    $logHeader      = "`nVideo Thumbnail Converter v1.8 - Run started $((Get-Date).ToString('dd/MM/yyyy HH:mm:ss'))"
     $logHeader     += "`nSource : $($txtSource.Text)"
     $logHeader     += "`nOutput : $outFolder"
     $logHeader     += "`nMode   : $(if ($script:atomicParsley) { 'Fast (AtomicParsley + FFmpeg)' } else { 'Standard (FFmpeg)' })"
