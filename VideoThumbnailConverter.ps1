@@ -135,7 +135,7 @@ function Invoke-LogMaintenance ([string]$logPath) {
     $lines       = Get-Content $logPath -ErrorAction SilentlyContinue
     $entryCount  = ($lines | Where-Object { $_ -match '^\[ OK \]|^\[FAIL\]' }).Count
 
-    if ($entryCount -ge 100) {
+    if ($entryCount -ge 500) {
         $archivePath = Join-Path (Split-Path $logPath) "VidThumbConverter_archive.log"
         # Append current log contents to the single archive file
         Add-Content -Path $archivePath -Value (Get-Content $logPath -Raw)
